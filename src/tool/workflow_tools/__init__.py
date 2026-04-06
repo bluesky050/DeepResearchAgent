@@ -11,6 +11,9 @@ from .reporter import ReporterTool
 from .tool_generator import ToolGeneratorTool
 from .skill_generator import SkillGeneratorTool
 from .todo import TodoTool
+from .github_pr_tool import GitHubPRTool
+from .static_analysis_tool import StaticAnalysisTool
+from .security_scan_tool import SecurityScanTool
 
 __all__ = [
     "BrowserTool",
@@ -20,4 +23,7 @@ __all__ = [
     "ToolGeneratorTool",
     "SkillGeneratorTool",
     "TodoTool",
+    "GitHubPRTool",
+    "StaticAnalysisTool",
+    "SecurityScanTool",
 ]

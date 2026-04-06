@@ -78,6 +78,31 @@ from .planning import (
     PlanningAgentMessagePrompt,
 )
 
+from .code_review_planner import (
+    CodeReviewPlannerSystemPrompt,
+    CodeReviewPlannerAgentMessagePrompt,
+)
+
+from .quality_review import (
+    QualityReviewSystemPrompt,
+    QualityReviewAgentMessagePrompt,
+)
+
+from .security_review import (
+    SecurityReviewSystemPrompt,
+    SecurityReviewAgentMessagePrompt,
+)
+
+from .performance_review import (
+    PerformanceReviewSystemPrompt,
+    PerformanceReviewAgentMessagePrompt,
+)
+
+from .test_coverage import (
+    TestCoverageSystemPrompt,
+    TestCoverageAgentMessagePrompt,
+)
+
 __all__ = [
     "AnthropicMobileSystemPrompt",
     "AnthropicMobileAgentMessagePrompt",
@@ -121,4 +146,14 @@ __all__ = [
     "TradingEvalAgentMessagePrompt",
     "PlanningSystemPrompt",
     "PlanningAgentMessagePrompt",
+    "CodeReviewPlannerSystemPrompt",
+    "CodeReviewPlannerAgentMessagePrompt",
+    "QualityReviewSystemPrompt",
+    "QualityReviewAgentMessagePrompt",
+    "SecurityReviewSystemPrompt",
+    "SecurityReviewAgentMessagePrompt",
+    "PerformanceReviewSystemPrompt",
+    "PerformanceReviewAgentMessagePrompt",
+    "TestCoverageSystemPrompt",
+    "TestCoverageAgentMessagePrompt",
 ]
