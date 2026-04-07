@@ -42,7 +42,7 @@ class ChatOpenAI(BaseModel):
     with support for tools, response_format, and streaming.
     """
     
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow", protected_namespaces=())
 
     # Model configuration
     model: Union[ChatModel, str]

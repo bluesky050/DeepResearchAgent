@@ -21,22 +21,22 @@ tag = "code_review_bus"
 workdir = f"workdir/{tag}"
 log_path = "code_review.log"
 
-use_local_proxy = True
+use_local_proxy = False
 version = "1.0.0"
-model_name = "openrouter/gemini-2.0-flash-exp:free"
+model_name = "deepseek/deepseek-chat"
 
-# Agents on the bus: planner + specialized review agents
+# Planner orchestrates; 6 specialized agents run in parallel via AgentBus
 agent_names = [
-    "code_review_planner",  # Planning agent (coordinator)
-    "github_pr",            # GitHub operations
-    "quality_review",       # Code quality analysis
-    "security_review",      # Security vulnerability detection
-    "performance_review",   # Performance analysis
-    "test_coverage",        # Test coverage analysis
-    "report_generator",     # Report generation
+    "code_review_planner",  # PlanningAgent: orchestrates all rounds
+    "github_pr",            # Fetches PR info, clones repo, publishes review
+    "quality_review",       # Analyzes code style, complexity, best practices
+    "security_review",      # Detects security vulnerabilities
+    "performance_review",   # Analyzes performance issues
+    "test_coverage",        # Checks test coverage
+    "report_generator",     # Synthesizes findings into structured report
 ]
 
-# Tools available to sub-agents
+# Tools shared across all sub-agents
 tool_names = [
     "github_pr",
     "static_analysis",
@@ -91,13 +91,14 @@ code_review_planner_agent.update(
     workdir=f"{workdir}/agent/code_review_planner",
     model_name=model_name,
     memory_name=memory_names[0],
-    require_grad=True,  # Enable optimization for planner
+    require_grad=True,
 )
 
 github_pr_agent.update(
     workdir=f"{workdir}/agent/github_pr",
     model_name=model_name,
     memory_name=memory_names[0],
+    max_steps=10,  # Simple operations, fewer steps needed
     require_grad=False,
 )
 
@@ -105,33 +106,38 @@ quality_review_agent.update(
     workdir=f"{workdir}/agent/quality_review",
     model_name=model_name,
     memory_name=memory_names[0],
-    require_grad=True,  # Enable optimization
+    max_steps=15,
+    require_grad=True,
 )
 
 security_review_agent.update(
     workdir=f"{workdir}/agent/security_review",
     model_name=model_name,
     memory_name=memory_names[0],
-    require_grad=True,  # Enable optimization
+    max_steps=15,
+    require_grad=True,
 )
 
 performance_review_agent.update(
     workdir=f"{workdir}/agent/performance_review",
     model_name=model_name,
     memory_name=memory_names[0],
-    require_grad=True,  # Enable optimization
+    max_steps=15,
+    require_grad=True,
 )
 
 test_coverage_agent.update(
     workdir=f"{workdir}/agent/test_coverage",
     model_name=model_name,
     memory_name=memory_names[0],
-    require_grad=True,  # Enable optimization
+    max_steps=15,
+    require_grad=True,
 )
 
 report_generator_agent.update(
     workdir=f"{workdir}/agent/report_generator",
     model_name=model_name,
     memory_name=memory_names[0],
+    max_steps=10,
     require_grad=False,
 )

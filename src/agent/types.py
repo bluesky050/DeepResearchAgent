@@ -375,11 +375,15 @@ class Agent(BaseModel):
             state = await memory_manager.get_state(
                 name=self.memory_name,
                 n=self.review_steps,
-                ctx=ctx
+                ctx=ctx,
+                agent_name=self.name
             )
             events = state["events"]
             summaries = state["summaries"]
             insights = state["insights"]
+
+            # Debug: log filtered events
+            logger.debug(f"| 🔍 Agent {self.name} retrieved {len(events)} events (review_steps={self.review_steps})")
             
             # Generate agent history
             memory += "<agent_history>"
@@ -525,13 +529,13 @@ class Agent(BaseModel):
 
 
         system_modules = dict(max_tools=self.max_tools,workdir=self.workdir)
-        agent_message_modules = dict(task=task)
-        
+        agent_message_modules = dict(task=task, workdir=self.workdir)
+
         agent_message_modules.update(await self._get_agent_context(task, ctx=ctx))
         agent_message_modules.update(await self._get_environment_context(ctx=ctx))
         agent_message_modules.update(await self._get_tool_context(ctx=ctx))
         agent_message_modules.update(await self._get_skill_context(ctx=ctx))
-        
+
         messages = await prompt_manager.get_messages(
             prompt_name=self.prompt_name,
             system_modules=system_modules,

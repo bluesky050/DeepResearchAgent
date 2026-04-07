@@ -2,12 +2,14 @@
 
 import asyncio
 import os
+import json
+import re
 from typing import List, Optional, Dict, Any
 from langchain_core.messages import BaseMessage
 from datetime import datetime
 from pydantic import Field, ConfigDict
 
-from src.agent.types import Agent, AgentResponse, AgentExtra, ThinkOutput
+from src.agent.types import Agent, AgentResponse, AgentExtra, ThinkOutput, ActionInputArgs
 from src.config import config
 from src.logger import logger
 from src.utils import dedent, parse_tool_args
@@ -66,7 +68,20 @@ class ToolCallingAgent(Agent):
     async def initialize(self):
         """Initialize the agent."""
         self.tracer_save_path = os.path.join(self.workdir, "tracer.json")
+        self._supports_response_format = None  # Cache for model capability detection
         await super().initialize()
+
+    async def _check_response_format_support(self) -> bool:
+      """Check if the model supports response_format (cached after first call)."""
+      if self._supports_response_format is not None:
+          return self._supports_response_format
+
+      # Force disable response_format for all models to avoid API errors
+      logger.info(f"| 🔍 Force disabling response_format for model: {self.model_name}")
+      self._supports_response_format = False
+
+      logger.info(f"| ✅ Model supports response_format: {self._supports_response_format}")
+      return self._supports_response_format
     
     async def _get_tracer_and_record(self) -> tuple[Tracer, Record]:
         """Get tracer and record for current call (coroutine-safe)."""
@@ -160,14 +175,69 @@ class ToolCallingAgent(Agent):
             "actions": [],
         }
         
+        def _parse_think_output(text: str) -> Optional[ThinkOutput]:
+            """Try to extract and parse a ThinkOutput JSON from LLM text output."""
+            match = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', text)
+            if not match:
+                match = re.search(r'\{[\s\S]*\}', text)
+            if not match:
+                return None
+            json_str = match.group(1) if match.lastindex else match.group()
+            logger.info(f"| Extracted ThinkOutput JSON (first 300): {json_str[:300]}")
+            data = json.loads(json_str)
+            # Normalize actions: each action's args must be a JSON string
+            if "actions" in data and isinstance(data["actions"], list):
+                for act in data["actions"]:
+                    if isinstance(act.get("args"), dict):
+                        act["args"] = json.dumps(act["args"])
+            return ThinkOutput(**data)
+
+        # Check model capability once and cache the result
+        supports_format = await self._check_response_format_support()
+
         try:
-            think_output = await model_manager(
-                model=self.model_name,
-                messages=messages,
-                response_format=ThinkOutput
+            if supports_format:
+                # Model supports response_format, use it directly
+                llm_resp = await model_manager(
+                    model=self.model_name,
+                    messages=messages,
+                    response_format=ThinkOutput
+                )
+                if not llm_resp.success:
+                    raise Exception(llm_resp.message or "LLM call failed")
+
+                think_output = llm_resp.extra.parsed_model if llm_resp.extra else None
+
+                if think_output is None:
+                    logger.warning(f"| parsed_model is None, trying manual parse")
+                    text = llm_resp.message or ""
+                    logger.info(f"| LLM raw response (first 500): {text[:500]}")
+                    think_output = _parse_think_output(text)
+                    if think_output is None:
+                        raise ValueError("No valid ThinkOutput JSON found in LLM response")
+            else:
+                # Model doesn't support response_format, skip it entirely
+                llm_resp = await model_manager(
+                    model=self.model_name,
+                    messages=messages,
+                )
+                text = llm_resp.message or ""
+                logger.info(f"| LLM raw response (first 500): {text[:500]}")
+                think_output = _parse_think_output(text)
+                if think_output is None:
+                    raise ValueError("No valid ThinkOutput JSON found in LLM response")
+
+        except Exception as exc:
+            logger.error(f"| ToolCallingAgent LLM error: {exc}", exc_info=True)
+            think_output = ThinkOutput(
+                thinking=f"LLM call failed: {exc}",
+                evaluation_previous_goal="Failed",
+                memory="",
+                next_goal="Retry or abort",
+                actions=[ActionInputArgs(type="tool", name="done", args='{"result": "LLM error, cannot continue"}')],
             )
-            think_output = think_output.extra.parsed_model
-            
+
+        try:
             thinking = think_output.thinking
             evaluation_previous_goal = think_output.evaluation_previous_goal
             memory = think_output.memory

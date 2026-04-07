@@ -52,34 +52,35 @@ PLANNING_RULES = """
 - Dispatch github_pr agent with action "get_pr_diff" to get code changes
 - These can run in parallel
 
-**Round 2: Clone and Analyze**
-- Dispatch github_pr agent with action "clone_pr_branch" to clone code locally
-- Analyze PR characteristics from Round 1 results
-
-**Round 3: Coordinate Review Agents**
-- Based on PR characteristics, dispatch appropriate review agents in parallel:
+**Round 2: Clone (Optional) and Coordinate Review Agents**
+- Attempt to dispatch github_pr agent with action "clone_pr_branch" to clone code locally for static analysis
+- IMPORTANT: If clone fails or is not needed, SKIP it and proceed immediately to dispatching review agents
+- Dispatch all review agents in parallel (regardless of clone result):
   - quality_review: Always dispatch for code quality analysis
   - security_review: Always dispatch for security vulnerability detection
   - performance_review: Dispatch if PR has significant logic changes
   - test_coverage: Dispatch if PR includes test files or modifies testable code
+- If clone succeeded, include the local file path in each review agent's task
+- If clone failed, CRITICAL: Extract the actual diff content from Round 1's get_pr_diff result (look for extra.data.diff in execution_history) and include the FULL diff text in each review agent's task description. Do NOT just say "use diff from Round 1" - paste the actual diff content.
 - All review agents run concurrently via asyncio.gather
 
-**Round 4: Generate Report**
+**Round 3: Generate Report**
 - Dispatch report_generator agent to synthesize all review results
 - Generate structured Markdown report with findings and recommendations
 
-**Round 5: Publish Review**
+**Round 4: Publish Review**
 - Dispatch github_pr agent with action "create_pr_review" to post report to PR
 - Mark task as complete
 
 **Agent Selection**
 - Use exact agent names from <available_agents>
 - Provide clear, self-contained task descriptions for each dispatch
-- Include file paths when needed (from clone_pr_branch result)
+- If clone failed, pass the diff/code content directly in the task description
 
 **Completion Criteria**
 - Set is_done=true only when review report has been published to PR
 - Provide comprehensive final_result summarizing the review outcome
+- If publishing fails, set is_done=true with the report content in final_result
 </planning_rules>
 """
 

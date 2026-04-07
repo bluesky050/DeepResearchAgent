@@ -23,42 +23,42 @@ Your task is to analyze Python code changes and identify performance issues incl
 </performance_standards>
 
 <analysis_approach>
-1. Use deep_analyzer tool to analyze code for performance patterns
-2. Identify algorithmic complexity issues
-3. Look for common performance anti-patterns:
-   - Nested loops that could be optimized
-   - Repeated database queries (N+1 problem)
-   - Large data loaded into memory unnecessarily
-   - Inefficient string concatenation in loops
-   - Missing caching opportunities
-4. Provide complexity analysis (Big O notation)
-5. Suggest specific optimizations with code examples
-</analysis_approach>
+CRITICAL: The task will contain EITHER a local file path OR diff content. Use what is provided:
+- If local path is provided: use bash for profiling if needed, then deep_analyzer
+- If only diff content is provided: use deep_analyzer DIRECTLY with the diff content. Do NOT attempt to clone or find files.
+- Do NOT spend more than 1 step trying to access files. If file access fails, immediately use deep_analyzer with diff content.
 
-<output_format>
-Return a structured JSON response:
-{
-  "performance_issues": [
-    {
-      "file": "path/to/file.py",
-      "line": 42,
-      "issue": "O(n²) nested loop",
-      "current_complexity": "O(n²)",
-      "suggested_complexity": "O(n log n)",
-      "description": "Nested loop iterating over same list twice",
-      "suggestion": "Use set for O(1) lookup instead of nested iteration",
-      "code_example": "# Use set for faster lookup\nitem_set = set(items)\nfor x in data:\n    if x in item_set:  # O(1) instead of O(n)"
-    }
-  ],
-  "summary": "Brief summary of performance analysis",
-  "overall_score": 7.5  // 0-10 scale, higher is better
-}
-</output_format>
+Analysis steps:
+1. Step 1: Run deep_analyzer with diff content to identify performance patterns
+2. Step 2: Call done with the complete performance review JSON result
+3. Maximum 2-3 tool calls total before calling done
+</analysis_approach>
 
 <tools_available>
 - deep_analyzer: LLM-based performance analysis
 - bash: Execute profiling or benchmarking if needed
+- done: Signal task completion with performance review results
 </tools_available>
+
+<output>
+You must ALWAYS respond with a valid JSON in this exact format.
+DO NOT add any other text like "```json" or "```" or anything else:
+
+{
+    "thinking": "Your reasoning about what to do next",
+    "evaluation_previous_goal": "One-sentence analysis of your last actions. Clearly state success, failure, or uncertainty.",
+    "memory": "1-3 sentences describing specific memory of this step and overall progress.",
+    "next_goal": "State the next immediate goals and actions to achieve them, in one clear sentence.",
+    "actions": [{"type": "tool", "name": "tool_name", "args": "{\"key\": \"value\"}"}]
+}
+
+Actions list should NEVER be empty. Each action must have a valid "type", "name", and "args".
+- Available tools: deep_analyzer, bash, done
+- WORKFLOW: Analyze the code using available tools → call done immediately with review results
+- When calling done, always include both "reasoning" and "result": {"reasoning": "explanation", "result": "JSON with performance issues"}
+- CRITICAL: After completing your analysis (typically 1-3 tool calls), call done immediately. Do NOT wait or perform additional analysis.
+- Maximum 3-5 steps total: analyze → call done
+</output>
 """
 
 PERFORMANCE_STANDARDS = """
@@ -121,6 +121,40 @@ SYSTEM_PROMPT = {
     },
 }
 
+PERFORMANCE_REVIEW_AGENT_MESSAGE_PROMPT = """
+<task>
+{{ task }}
+</task>
+
+{{ agent_context }}
+"""
+
+AGENT_MESSAGE_PROMPT = {
+    "name": "performance_review_agent_message_prompt",
+    "type": "agent_message_prompt",
+    "description": "Per-step context for performance review agent",
+    "require_grad": False,
+    "template": PERFORMANCE_REVIEW_AGENT_MESSAGE_PROMPT,
+    "variables": {
+        "task": {
+            "name": "task",
+            "type": "agent_message_prompt",
+            "description": "Current task description",
+            "require_grad": False,
+            "template": None,
+            "variables": None,
+        },
+        "agent_context": {
+            "name": "agent_context",
+            "type": "agent_message_prompt",
+            "description": "Agent context including history",
+            "require_grad": False,
+            "template": None,
+            "variables": None,
+        },
+    },
+}
+
 @PROMPT.register_module(force=True)
 class PerformanceReviewSystemPrompt(Prompt):
     """System prompt for performance review agent."""
@@ -146,4 +180,4 @@ class PerformanceReviewAgentMessagePrompt(Prompt):
     require_grad: bool = Field(default=False)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    prompt_config: Dict[str, Any] = Field(default_factory=dict)
+    prompt_config: Dict[str, Any] = Field(default=AGENT_MESSAGE_PROMPT)

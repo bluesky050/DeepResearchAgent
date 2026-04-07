@@ -15,7 +15,10 @@ root = str(Path(__file__).resolve().parents[1])
 sys.path.append(root)
 
 from src.environment.quickbacktest.run import signal_to_dataframe
-from libs.BinanceDatabase.src.core.time_utils import utc_ms
+try:
+    from libs.BinanceDatabase.src.core.time_utils import utc_ms
+except (ImportError, ModuleNotFoundError):
+    utc_ms = None
 
 
 # ============================================================

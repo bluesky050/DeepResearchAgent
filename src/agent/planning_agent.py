@@ -514,22 +514,85 @@ class PlanningAgent(Agent):
         # ------------------------------------------------------------------
         # LLM call
         # ------------------------------------------------------------------
+        import json, re
+
+        def _parse_plan_decision(text: str) -> Optional["PlanDecision"]:
+            """Try to extract and parse a PlanDecision JSON from LLM text output."""
+            # Try markdown code block first
+            match = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', text)
+            if not match:
+                # Try raw JSON object
+                match = re.search(r'\{[\s\S]*\}', text)
+            if not match:
+                return None
+            json_str = match.group(1) if match.lastindex else match.group()
+            logger.info(f"| Extracted JSON (first 300): {json_str[:300]}")
+            return PlanDecision(**json.loads(json_str))
+
         try:
             llm_output = await model_manager(
                 model=self.model_name,
                 messages=messages,
                 response_format=PlanDecision,
             )
-            decision: PlanDecision = llm_output.extra.parsed_model
+            # If the call failed (e.g. response_format not supported), raise to trigger retry
+            if not llm_output.success:
+                raise Exception(llm_output.message or "LLM call failed")
+
+            decision: PlanDecision = llm_output.extra.parsed_model if llm_output.extra else None
+            # Fallback: if parsed_model is None, try to parse the text content as JSON
+            if decision is None:
+                logger.warning(f"| parsed_model is None, trying manual parse")
+                if llm_output.message:
+                    text = llm_output.message
+                    logger.info(f"| LLM raw response (first 500): {text[:500]}")
+                    decision = _parse_plan_decision(text)
+                else:
+                    logger.error(f"| No message in llm_output")
         except Exception as exc:
-            logger.error(f"| PlanningAgent LLM error: {exc}", exc_info=True)
+            # If response_format is not supported (e.g. DeepSeek), retry without it
+            if "response_format" in str(exc) or "invalid_request_error" in str(exc):
+                logger.warning(f"| PlanningAgent: response_format not supported, retrying without it")
+                try:
+                    llm_output = await model_manager(
+                        model=self.model_name,
+                        messages=messages,
+                    )
+                    text = llm_output.message or ""
+                    logger.info(f"| LLM raw response (first 500): {text[:500]}")
+                    decision = _parse_plan_decision(text)
+                    if decision is None:
+                        raise ValueError(f"No valid JSON found in LLM response")
+                except Exception as exc2:
+                    logger.error(f"| PlanningAgent LLM retry error: {exc2}", exc_info=True)
+                    decision = PlanDecision(
+                        thinking=f"LLM call failed: {exc2}",
+                        analysis="",
+                        plan_update="Planning failed due to LLM error.",
+                        dispatches=[],
+                        is_done=True,
+                        final_result=f"Planning failed: {exc2}",
+                    )
+            else:
+                logger.error(f"| PlanningAgent LLM error: {exc}", exc_info=True)
+                decision = PlanDecision(
+                    thinking=f"LLM call failed: {exc}",
+                    analysis="",
+                    plan_update="Planning failed due to LLM error.",
+                    dispatches=[],
+                    is_done=True,
+                    final_result=f"Planning failed: {exc}",
+                )
+
+        if decision is None:
+            logger.error("| PlanningAgent: decision is None after all attempts")
             decision = PlanDecision(
-                thinking=f"LLM call failed: {exc}",
+                thinking="Failed to parse LLM response",
                 analysis="",
-                plan_update="Planning failed due to LLM error.",
+                plan_update="Planning failed: could not parse LLM response.",
                 dispatches=[],
                 is_done=True,
-                final_result=f"Planning failed: {exc}",
+                final_result="Planning failed: could not parse LLM response.",
             )
 
         logger.info(f"| 📋 Plan: {decision.plan_update[:200]}")

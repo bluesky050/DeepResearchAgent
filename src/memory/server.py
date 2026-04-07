@@ -232,22 +232,24 @@ class MemoryManager(BaseModel):
         """
         return await self.memory_context_manager.clear_session(memory_name, ctx=ctx, **kwargs)
     
-    async def get_state(self, 
-                        name: str, 
-                        n: Optional[int] = None, 
+    async def get_state(self,
+                        name: str,
+                        n: Optional[int] = None,
                         ctx: SessionContext = None,
+                        agent_name: Optional[str] = None,
                         **kwargs
                         ) -> Dict[str, Any]:
         """Get memory state (events, summaries, insights) for a memory system.
-        
+
         Args:
             name: Memory system name
             n: Number of items to retrieve. If None, returns all items.
             ctx: Memory context
+            agent_name: If provided, only return events from this agent.
         Returns:
             Dictionary containing 'events', 'summaries', and 'insights'
         """
-        return await self.memory_context_manager.get_state(name, n, ctx, **kwargs)
+        return await self.memory_context_manager.get_state(name, n, ctx, agent_name=agent_name, **kwargs)
     
     async def get_variables(self, memory_name: Optional[str] = None) -> Dict[str, 'Variable']:
         """Get variables from memory systems, where each memory's code is used as the variable value.

@@ -119,6 +119,7 @@ async def main():
     # 2. Sync agent registry into the bus
     # ------------------------------------------------------------------
     logger.info("| Initializing AgentBus...")
+    bus.planner_name = "code_review_planner"
     await bus.initialize()
     logger.info(f"| Bus agents: {bus.list_agents()}")
 

@@ -22,8 +22,12 @@ from src.environment.quickbacktest.utils import (
     path_outperformance_score
 )
 from src.environment.quickbacktest.backtest import backtest_strategy
-from libs.BinanceDatabase.src.core import BinanceDatabase
-from libs.BinanceDatabase.src.core.time_utils import utc_ms
+try:
+    from libs.BinanceDatabase.src.core import BinanceDatabase
+    from libs.BinanceDatabase.src.core.time_utils import utc_ms
+except (ImportError, ModuleNotFoundError):
+    BinanceDatabase = None
+    utc_ms = None
 from datetime import datetime
 import pandas as pd
 import importlib 

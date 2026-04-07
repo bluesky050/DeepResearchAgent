@@ -23,42 +23,43 @@ Your task is to analyze Python code changes and identify quality issues includin
 </quality_standards>
 
 <analysis_approach>
-1. Use static_analysis tool to run pylint and flake8 on the code
-2. Use deep_analyzer tool to perform LLM-based code review for:
-   - Logical issues not caught by static analysis
-   - Design pattern violations
-   - Maintainability concerns
-   - Readability issues
-3. Categorize issues by severity: error, warning, convention, refactor
-4. Provide specific line numbers and actionable fix suggestions
-5. Highlight positive aspects of the code (good practices)
-</analysis_approach>
+CRITICAL: The task will contain EITHER a local file path OR diff content. Use what is provided:
+- If local path is provided: use static_analysis tool first, then deep_analyzer if needed
+- If only diff content is provided: use deep_analyzer DIRECTLY with the diff content. Do NOT attempt to clone or find files.
+- Do NOT spend more than 1 step trying to access files. If file access fails, immediately use deep_analyzer with diff content.
 
-<output_format>
-Return a structured JSON response:
-{
-  "quality_score": 8.5,  // 0-10 scale
-  "issues": [
-    {
-      "file": "path/to/file.py",
-      "line": 42,
-      "severity": "warning",  // error, warning, convention, refactor
-      "category": "naming",  // naming, complexity, style, documentation, etc.
-      "message": "Variable name 'x' is not descriptive",
-      "suggestion": "Rename to 'user_count' for clarity"
-    }
-  ],
-  "summary": "Brief summary of overall code quality",
-  "strengths": ["List of positive aspects"],
-  "recommendations": ["High-level improvement suggestions"]
-}
-</output_format>
+Analysis steps:
+1. Step 1: Run static_analysis (if local path available) OR deep_analyzer with diff content
+2. Step 2: Call done with the complete quality review JSON result
+3. Maximum 2-3 tool calls total before calling done
+</analysis_approach>
 
 <tools_available>
 - static_analysis: Run pylint and flake8 for automated checks
 - deep_analyzer: LLM-based deep code analysis
 - bash: Execute additional analysis commands if needed
+- done: Signal task completion with review results
 </tools_available>
+
+<output>
+You must ALWAYS respond with a valid JSON in this exact format.
+DO NOT add any other text like "```json" or "```" or anything else:
+
+{
+    "thinking": "Your reasoning about what to do next",
+    "evaluation_previous_goal": "One-sentence analysis of your last actions. Clearly state success, failure, or uncertainty.",
+    "memory": "1-3 sentences describing specific memory of this step and overall progress.",
+    "next_goal": "State the next immediate goals and actions to achieve them, in one clear sentence.",
+    "actions": [{"type": "tool", "name": "tool_name", "args": "{\"key\": \"value\"}"}]
+}
+
+Actions list should NEVER be empty. Each action must have a valid "type", "name", and "args".
+- Available tools: static_analysis, deep_analyzer, bash, done
+- WORKFLOW: Analyze the code using available tools → call done immediately with review results
+- When calling done, always include both "reasoning" and "result": {"reasoning": "explanation", "result": "JSON with quality issues"}
+- CRITICAL: After completing your analysis (typically 1-3 tool calls), call done immediately. Do NOT wait or perform additional analysis.
+- Maximum 3-5 steps total: analyze → call done
+</output>
 """
 
 QUALITY_STANDARDS = """
@@ -94,6 +95,14 @@ QUALITY_STANDARDS = """
 - Avoid mutable default arguments
 """
 
+QUALITY_REVIEW_AGENT_MESSAGE_PROMPT = """
+<task>
+{{ task }}
+</task>
+
+{{ agent_context }}
+"""
+
 SYSTEM_PROMPT = {
     "name": "quality_review_system_prompt",
     "type": "system_prompt",
@@ -108,6 +117,32 @@ SYSTEM_PROMPT = {
             "require_grad": True,
             "template": None,
             "variables": QUALITY_STANDARDS,
+        },
+    },
+}
+
+AGENT_MESSAGE_PROMPT = {
+    "name": "quality_review_agent_message_prompt",
+    "type": "agent_message_prompt",
+    "description": "Per-step context for quality review agent",
+    "require_grad": False,
+    "template": QUALITY_REVIEW_AGENT_MESSAGE_PROMPT,
+    "variables": {
+        "task": {
+            "name": "task",
+            "type": "agent_message_prompt",
+            "description": "Current task description",
+            "require_grad": False,
+            "template": None,
+            "variables": None,
+        },
+        "agent_context": {
+            "name": "agent_context",
+            "type": "agent_message_prompt",
+            "description": "Agent context including history",
+            "require_grad": False,
+            "template": None,
+            "variables": None,
         },
     },
 }
@@ -137,4 +172,4 @@ class QualityReviewAgentMessagePrompt(Prompt):
     require_grad: bool = Field(default=False)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    prompt_config: Dict[str, Any] = Field(default_factory=dict)
+    prompt_config: Dict[str, Any] = Field(default=AGENT_MESSAGE_PROMPT)

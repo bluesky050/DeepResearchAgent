@@ -103,6 +103,16 @@ from .test_coverage import (
     TestCoverageAgentMessagePrompt,
 )
 
+from .github_pr import (
+    GitHubPRSystemPrompt,
+    GitHubPRAgentMessagePrompt,
+)
+
+from .report_generator import (
+    ReportGeneratorSystemPrompt,
+    ReportGeneratorAgentMessagePrompt,
+)
+
 __all__ = [
     "AnthropicMobileSystemPrompt",
     "AnthropicMobileAgentMessagePrompt",
@@ -156,4 +166,8 @@ __all__ = [
     "PerformanceReviewAgentMessagePrompt",
     "TestCoverageSystemPrompt",
     "TestCoverageAgentMessagePrompt",
+    "GitHubPRSystemPrompt",
+    "GitHubPRAgentMessagePrompt",
+    "ReportGeneratorSystemPrompt",
+    "ReportGeneratorAgentMessagePrompt",
 ]

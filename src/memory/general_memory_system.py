@@ -277,11 +277,16 @@ class CombinedMemory:
         """Return current event count"""
         return len(self.events)
     
-    async def get_event(self, n: Optional[int] = None) -> List[ChatEvent]:
+    async def get_event(self, n: Optional[int] = None, agent_name: Optional[str] = None) -> List[ChatEvent]:
+        # Filter by agent_name if provided
+        events = self.events
+        if agent_name:
+            events = [e for e in events if e.agent_name == agent_name]
+
         if n is None:
-            return self.events
-        
-        return self.events[-n:] if len(self.events) > n else self.events
+            return events
+
+        return events[-n:] if len(events) > n else events
     
     async def get_summary(self, n: Optional[int] = None) -> List[Summary]:
         if n is None:
@@ -498,19 +503,20 @@ class GeneralMemorySystem(Memory):
             await self._session_memory_cache[id].clear()
             await self._cleanup_session_memory(id)
             
-    async def get_event(self, n: Optional[int] = None, ctx: SessionContext = None, **kwargs) -> List[ChatEvent]:
+    async def get_event(self, n: Optional[int] = None, ctx: SessionContext = None, agent_name: Optional[str] = None, **kwargs) -> List[ChatEvent]:
         """Get events from memory system.
-        
+
         Args:
             n: Number of events to retrieve. If None, returns all events.
             ctx: Memory context
-            
+            agent_name: If provided, only return events from this agent.
+
         Returns:
             List of events
         """
         id = ctx.id
         if id in self._session_memory_cache:
-            return await self._session_memory_cache[id].get_event(n=n)
+            return await self._session_memory_cache[id].get_event(n=n, agent_name=agent_name)
         return []
     
     async def get_summary(self, n: Optional[int] = None, ctx: SessionContext = None, **kwargs) -> List[Summary]:

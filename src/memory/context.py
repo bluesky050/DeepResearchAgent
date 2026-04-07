@@ -1240,18 +1240,20 @@ class MemoryContextManager(BaseModel):
             raise ValueError(f"Memory system '{memory_name}' not found")
         return await instance.clear_session(ctx=ctx, **kwargs)
     
-    async def get_state(self, 
-                        memory_name: str, 
-                        n: Optional[int] = None, 
+    async def get_state(self,
+                        memory_name: str,
+                        n: Optional[int] = None,
                         ctx: SessionContext = None,
+                        agent_name: Optional[str] = None,
                         **kwargs) -> Dict[str, Any]:
         """Get memory state (events, summaries, insights) for a memory system.
-        
+
         Args:
             memory_name: Name of the memory system
             n: Number of items to retrieve. If None, returns all items.
             ctx: Memory context
-            
+            agent_name: If provided, only return events from this agent.
+
         Returns:
             Dictionary containing 'events', 'summaries', and 'insights'
         """
@@ -1260,9 +1262,9 @@ class MemoryContextManager(BaseModel):
         version = memory_info.version
         memory_instance = memory_info.instance
         logger.info(f"| ✅ Using memory {memory_name}@{version}")
-        
+
         # Get events, summaries, and insights from memory instance
-        events = await memory_instance.get_event(n=n, ctx=ctx, **kwargs)
+        events = await memory_instance.get_event(n=n, ctx=ctx, agent_name=agent_name, **kwargs)
         summaries = await memory_instance.get_summary(n=n, ctx=ctx, **kwargs)
         insights = await memory_instance.get_insight(n=n, ctx=ctx, **kwargs)
         

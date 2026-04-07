@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Union, Optional, Dict, Any, Tuple
 from PIL import Image, ImageDraw
 import io
-import cairosvg
+try:
+    import cairosvg
+except (ImportError, OSError):
+    cairosvg = None
 
 class ScreenshotService:
 	"""Simple screenshot storage service that saves screenshots to disk"""

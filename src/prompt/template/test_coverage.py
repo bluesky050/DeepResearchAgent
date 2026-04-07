@@ -22,60 +22,42 @@ Your task is to analyze Python code changes and test coverage including:
 </testing_standards>
 
 <analysis_approach>
-1. Use bash tool to run pytest with coverage (pytest --cov)
-2. Use deep_analyzer tool to analyze:
-   - Which code paths lack test coverage
-   - Missing edge cases and boundary tests
-   - Error handling coverage
-   - Test quality and assertions
-3. Identify critical untested code (authentication, payment, data validation)
-4. Suggest specific test cases to add
-5. Evaluate test code quality (clear, maintainable, isolated)
-</analysis_approach>
+CRITICAL: The task will contain EITHER a local file path OR diff content. Use what is provided:
+- If local path is provided: use bash to run pytest --cov first, then deep_analyzer if needed
+- If only diff content is provided: use deep_analyzer DIRECTLY with the diff content. Do NOT attempt to clone or find files.
+- Do NOT spend more than 1 step trying to access files. If file access fails, immediately use deep_analyzer with diff content.
 
-<output_format>
-Return a structured JSON response:
-{
-  "coverage_percentage": 76.3,
-  "coverage_by_file": {
-    "path/to/file.py": 85.5,
-    "path/to/other.py": 45.2
-  },
-  "uncovered_lines": [
-    {
-      "file": "path/to/file.py",
-      "lines": [42, 43, 44],
-      "reason": "Error handling path not tested"
-    }
-  ],
-  "missing_tests": [
-    {
-      "file": "path/to/file.py",
-      "function": "process_payment",
-      "missing_cases": [
-        "Test with invalid payment amount",
-        "Test with expired card",
-        "Test with network timeout"
-      ],
-      "priority": "high"
-    }
-  ],
-  "test_quality_issues": [
-    {
-      "test_file": "tests/test_user.py",
-      "issue": "Tests are not isolated, share state",
-      "suggestion": "Use fixtures to create fresh test data"
-    }
-  ],
-  "summary": "Brief summary of test coverage status",
-  "overall_score": 7.5  // 0-10 scale
-}
-</output_format>
+Analysis steps:
+1. Step 1: Run deep_analyzer with diff content to analyze test coverage gaps
+2. Step 2: Call done with the complete test coverage review JSON result
+3. Maximum 2-3 tool calls total before calling done
+</analysis_approach>
 
 <tools_available>
 - bash: Run pytest with coverage analysis
 - deep_analyzer: LLM-based test analysis
+- done: Signal task completion with test coverage results
 </tools_available>
+
+<output>
+You must ALWAYS respond with a valid JSON in this exact format.
+DO NOT add any other text like "```json" or "```" or anything else:
+
+{
+    "thinking": "Your reasoning about what to do next",
+    "evaluation_previous_goal": "One-sentence analysis of your last actions. Clearly state success, failure, or uncertainty.",
+    "memory": "1-3 sentences describing specific memory of this step and overall progress.",
+    "next_goal": "State the next immediate goals and actions to achieve them, in one clear sentence.",
+    "actions": [{"type": "tool", "name": "tool_name", "args": "{\"key\": \"value\"}"}]
+}
+
+Actions list should NEVER be empty. Each action must have a valid "type", "name", and "args".
+- Available tools: bash, deep_analyzer, done
+- WORKFLOW: Analyze the code using available tools → call done immediately with review results
+- When calling done, always include both "reasoning" and "result": {"reasoning": "explanation", "result": "JSON with test coverage findings"}
+- CRITICAL: After completing your analysis (typically 1-3 tool calls), call done immediately. Do NOT wait or perform additional analysis.
+- Maximum 3-5 steps total: analyze → call done
+</output>
 """
 
 TESTING_STANDARDS = """
@@ -151,6 +133,40 @@ SYSTEM_PROMPT = {
     },
 }
 
+TEST_COVERAGE_AGENT_MESSAGE_PROMPT = """
+<task>
+{{ task }}
+</task>
+
+{{ agent_context }}
+"""
+
+AGENT_MESSAGE_PROMPT = {
+    "name": "test_coverage_agent_message_prompt",
+    "type": "agent_message_prompt",
+    "description": "Per-step context for test coverage review agent",
+    "require_grad": False,
+    "template": TEST_COVERAGE_AGENT_MESSAGE_PROMPT,
+    "variables": {
+        "task": {
+            "name": "task",
+            "type": "agent_message_prompt",
+            "description": "Current task description",
+            "require_grad": False,
+            "template": None,
+            "variables": None,
+        },
+        "agent_context": {
+            "name": "agent_context",
+            "type": "agent_message_prompt",
+            "description": "Agent context including history",
+            "require_grad": False,
+            "template": None,
+            "variables": None,
+        },
+    },
+}
+
 @PROMPT.register_module(force=True)
 class TestCoverageSystemPrompt(Prompt):
     """System prompt for test coverage review agent."""
@@ -176,4 +192,4 @@ class TestCoverageAgentMessagePrompt(Prompt):
     require_grad: bool = Field(default=False)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    prompt_config: Dict[str, Any] = Field(default_factory=dict)
+    prompt_config: Dict[str, Any] = Field(default=AGENT_MESSAGE_PROMPT)

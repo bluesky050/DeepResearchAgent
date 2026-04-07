@@ -530,7 +530,12 @@ class AgentBus:
                         "error": raw.payload.get("error"),
                     }
                     tag = "OK" if ok else "FAIL"
-                    history_parts.append(f"  {tag} {name}: {result_text[:300]}")
+                    # For github_pr agent with get_pr_diff action, preserve full diff content
+                    # Otherwise truncate to 300 chars to keep execution_history manageable
+                    if name == "github_pr" and "FULL DIFF:" in result_text:
+                        history_parts.append(f"  {tag} {name}: {result_text}")
+                    else:
+                        history_parts.append(f"  {tag} {name}: {result_text[:300]}")
                     logger.info(f"| Bus: agent '{name}' → {tag}")
 
             history_parts.append("")

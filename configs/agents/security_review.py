@@ -10,5 +10,6 @@ security_review_agent = dict(
     max_steps=20,
     review_steps=5,
     log_max_length=1000,
+    use_todo=False,
     require_grad=True,
 )

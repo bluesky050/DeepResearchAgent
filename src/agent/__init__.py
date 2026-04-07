@@ -13,6 +13,15 @@ from .online_trading_agent import OnlineTradingAgent
 from .offline_trading_agent import OfflineTradingAgent
 from .trading_strategy_agent import TradingStrategyAgent
 from .esg_agent import ESGAgent
+from .code_review_planner_agent import CodeReviewPlannerAgent
+from .code_review_agents import (
+    GithubPRAgent,
+    QualityReviewAgent,
+    SecurityReviewAgent,
+    PerformanceReviewAgent,
+    TestCoverageAgent,
+    ReportGeneratorAgent,
+)
 from .server import acp
 
 
@@ -30,5 +39,13 @@ __all__ = [
     "OfflineTradingAgent",
     "TradingStrategyAgent",
     "ESGAgent",
+    "CodeReviewPlannerAgent",
+    "GithubPRAgent",
+    "QualityReviewAgent",
+    "SecurityReviewAgent",
+    "PerformanceReviewAgent",
+    "TestCoverageAgent",
+    "ReportGeneratorAgent",
     "acp",
 ]
+

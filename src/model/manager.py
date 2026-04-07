@@ -63,6 +63,7 @@ class ModelManager:
     async def initialize(self):
         """Initialize the manager and register default models."""
         await self._initialize_openai_models()
+        await self._initialize_deepseek_models()
         await self._initialize_openrouter_models()
         await self._initialize_anthropic_models()
         await self._initialize_google_models()
@@ -258,6 +259,46 @@ class ModelManager:
             self.models[config.model_name] = config
             await self._create_client(config)
     
+    async def _initialize_deepseek_models(self):
+        """Initialize DeepSeek models via official API."""
+        chat_models = [
+            {
+                "model_name": "deepseek/deepseek-chat",
+                "model_id": "deepseek-chat",
+                "model_type": "chat/completions",
+                "temperature": self.default_temperature,
+                "max_completion_tokens": self.max_tokens,
+                "fallback_model": "deepseek/deepseek-chat",
+            },
+            {
+                "model_name": "deepseek/deepseek-reasoner",
+                "model_id": "deepseek-reasoner",
+                "model_type": "chat/completions",
+                "temperature": self.default_temperature,
+                "max_completion_tokens": self.max_tokens,
+                "fallback_model": "deepseek/deepseek-chat",
+            },
+        ]
+
+        for model in chat_models:
+            config = ModelConfig(
+                model_name=model["model_name"],
+                model_id=model["model_id"],
+                model_type=model["model_type"],
+                provider="openai",
+                api_base=os.getenv("DEEPSEEK_API_BASE") or "https://api.deepseek.com",
+                api_key=os.getenv("DEEPSEEK_API_KEY"),
+                temperature=model.get("temperature"),
+                max_completion_tokens=model.get("max_completion_tokens"),
+                supports_streaming=True,
+                supports_functions=True,
+                supports_vision=False,
+                output_version=None,
+                fallback_model=model.get("fallback_model"),
+            )
+            self.models[config.model_name] = config
+            await self._create_client(config)
+
     async def _initialize_openrouter_models(self):
         """Initialize OpenRouter models (OpenAI models via OpenRouter)."""
         chat_models = [
@@ -568,6 +609,15 @@ class ModelManager:
                 "max_completion_tokens": self.max_tokens,
                 "fallback_model": "openrouter/gemini-3-flash-preview",
             },
+            # Free models
+            {
+                "model_name": "openrouter/llama-3.1-8b-free",
+                "model_id": "meta-llama/llama-3.1-8b-instruct:free",
+                "model_type": "chat/completions",
+                "temperature": self.default_temperature,
+                "max_completion_tokens": self.max_tokens,
+                "fallback_model": "openrouter/qwen3-coder",
+            },
             # Qwen models
             {
                 "model_name": "openrouter/qwen3-coder",
@@ -632,7 +682,7 @@ class ModelManager:
                 model_id=model["model_id"],
                 model_type=model["model_type"],
                 provider="openrouter",
-                api_base=os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"),
+                api_base=os.getenv("OPENROUTER_API_BASE") or "https://openrouter.ai/api/v1",
                 api_key=os.getenv("OPENROUTER_API_KEY"),
                 reasoning=model.get("reasoning") if model.get("reasoning") else None,
                 plugins=model.get("plugins") if model.get("plugins") else None,
@@ -857,14 +907,19 @@ class ModelManager:
             logger.info(f"| Created EmbeddingOpenAI client for {config.model_name}")
         else:
             # Create ChatOpenAI client
-            client = ChatOpenAI(
-                model=config.model_id,
-                api_key=config.api_key,
-                base_url=config.api_base,
-                temperature=config.temperature or self.default_temperature,
-                reasoning=config.reasoning if config.reasoning else None,
-                max_completion_tokens=config.max_completion_tokens or self.max_tokens,
-            )
+            # Only pass plugins for OpenRouter provider
+            client_params = {
+                "model": config.model_id,
+                "api_key": config.api_key,
+                "base_url": config.api_base,
+                "temperature": config.temperature or self.default_temperature,
+                "reasoning": config.reasoning if config.reasoning else None,
+                "max_completion_tokens": config.max_completion_tokens or self.max_tokens,
+            }
+            if config.provider == "openrouter" and config.plugins:
+                client_params["plugins"] = config.plugins
+
+            client = ChatOpenAI(**client_params)
             logger.info(f"| Created ChatOpenAI client for {config.model_name}")
             
         self.model_clients[config.model_name] = client
@@ -971,14 +1026,19 @@ class ModelManager:
                 # Chat/response models use messages parameter
                 if messages is None:
                     raise ValueError("messages parameter is required for chat/response models")
-                result = await client(
-                    messages=messages,
-                    tools=tools,
-                    response_format=response_format,
-                    stream=stream,
-                    plugins=plugins,
+
+                # Only pass plugins for OpenRouter provider
+                call_kwargs = {
+                    "messages": messages,
+                    "tools": tools,
+                    "response_format": response_format,
+                    "stream": stream,
                     **kwargs,
-                )
+                }
+                if model_config and model_config.provider == "openrouter" and plugins:
+                    call_kwargs["plugins"] = plugins
+
+                result = await client(**call_kwargs)
             
             self._log_usage(current_model, result)
             return result

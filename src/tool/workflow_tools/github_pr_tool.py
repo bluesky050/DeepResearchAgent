@@ -205,7 +205,7 @@ class GitHubPRTool(Tool):
                         "diff": file.patch
                     })
 
-            message = f"Generated diff for {len(files_data)} files (total {len(full_diff)} characters)"
+            message = f"Generated diff for {len(files_data)} files (total {len(full_diff)} characters)\n\nFULL DIFF:\n{full_diff}"
 
             return ToolResponse(
                 success=True,

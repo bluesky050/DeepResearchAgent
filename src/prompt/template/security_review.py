@@ -24,42 +24,43 @@ Your task is to analyze Python code changes and identify security issues includi
 </security_standards>
 
 <analysis_approach>
-1. Use security_scan tool to run bandit for automated vulnerability detection
-2. Use deep_analyzer tool to perform LLM-based security analysis for:
-   - Logic flaws in authentication/authorization
-   - Business logic vulnerabilities
-   - Data exposure risks
-   - Insecure API usage patterns
-3. Categorize vulnerabilities by risk level: high, medium, low
-4. Provide specific line numbers and remediation guidance
-5. Reference OWASP Top 10 and CWE classifications where applicable
-</analysis_approach>
+CRITICAL: The task will contain EITHER a local file path OR diff content. Use what is provided:
+- If local path is provided: use security_scan tool first, then deep_analyzer if needed
+- If only diff content is provided: use deep_analyzer DIRECTLY with the diff content. Do NOT attempt to clone or find files.
+- Do NOT spend more than 1 step trying to access files. If file access fails, immediately use deep_analyzer with diff content.
 
-<output_format>
-Return a structured JSON response:
-{
-  "high_risk": [
-    {
-      "file": "path/to/file.py",
-      "line": 42,
-      "vulnerability": "SQL Injection",
-      "description": "User input directly concatenated into SQL query",
-      "cwe": "CWE-89",
-      "remediation": "Use parameterized queries or ORM"
-    }
-  ],
-  "medium_risk": [...],
-  "low_risk": [...],
-  "summary": "Brief summary of security posture",
-  "risk_score": 7.5  // 0-10 scale, higher is more risky
-}
-</output_format>
+Analysis steps:
+1. Step 1: Run security_scan (if local path available) OR deep_analyzer with diff content
+2. Step 2: Call done with the complete security review JSON result
+3. Maximum 2-3 tool calls total before calling done
+</analysis_approach>
 
 <tools_available>
 - security_scan: Run bandit security scanner
 - deep_analyzer: LLM-based security analysis
 - bash: Execute additional security checks if needed
+- done: Signal task completion with security review results
 </tools_available>
+
+<output>
+You must ALWAYS respond with a valid JSON in this exact format.
+DO NOT add any other text like "```json" or "```" or anything else:
+
+{
+    "thinking": "Your reasoning about what to do next",
+    "evaluation_previous_goal": "One-sentence analysis of your last actions. Clearly state success, failure, or uncertainty.",
+    "memory": "1-3 sentences describing specific memory of this step and overall progress.",
+    "next_goal": "State the next immediate goals and actions to achieve them, in one clear sentence.",
+    "actions": [{"type": "tool", "name": "tool_name", "args": "{\"key\": \"value\"}"}]
+}
+
+Actions list should NEVER be empty. Each action must have a valid "type", "name", and "args".
+- Available tools: security_scan, deep_analyzer, bash, done
+- WORKFLOW: Analyze the code using available tools → call done immediately with review results
+- When calling done, always include both "reasoning" and "result": {"reasoning": "explanation", "result": "JSON with security issues"}
+- CRITICAL: After completing your analysis (typically 1-3 tool calls), call done immediately. Do NOT wait or perform additional analysis.
+- Maximum 3-5 steps total: analyze → call done
+</output>
 """
 
 SECURITY_STANDARDS = """
@@ -99,6 +100,40 @@ SECURITY_STANDARDS = """
 - Keep dependencies up to date
 - Use security linters and SAST tools
 """
+
+SECURITY_REVIEW_AGENT_MESSAGE_PROMPT = """
+<task>
+{{ task }}
+</task>
+
+{{ agent_context }}
+"""
+
+AGENT_MESSAGE_PROMPT = {
+    "name": "security_review_agent_message_prompt",
+    "type": "agent_message_prompt",
+    "description": "Per-step context for security review agent",
+    "require_grad": False,
+    "template": SECURITY_REVIEW_AGENT_MESSAGE_PROMPT,
+    "variables": {
+        "task": {
+            "name": "task",
+            "type": "agent_message_prompt",
+            "description": "Current task description",
+            "require_grad": False,
+            "template": None,
+            "variables": None,
+        },
+        "agent_context": {
+            "name": "agent_context",
+            "type": "agent_message_prompt",
+            "description": "Agent context including history",
+            "require_grad": False,
+            "template": None,
+            "variables": None,
+        },
+    },
+}
 
 SYSTEM_PROMPT = {
     "name": "security_review_system_prompt",
@@ -143,4 +178,4 @@ class SecurityReviewAgentMessagePrompt(Prompt):
     require_grad: bool = Field(default=False)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    prompt_config: Dict[str, Any] = Field(default_factory=dict)
+    prompt_config: Dict[str, Any] = Field(default=AGENT_MESSAGE_PROMPT)
